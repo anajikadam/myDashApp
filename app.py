@@ -1,101 +1,58 @@
 import dash
 import dash_core_components as dcc
-import dash_html_components as html 
-from dash.dependencies import Input, Output 
+import dash_html_components as html
 
-import requests 
-import plotly.graph_objects as go
-import pandas as pd
+from server import app, server
 
-pd.set_option("display.max_rows", 999)
-pd.set_option("display.max_columns", 999)
+from datetime import datetime
+import time 
 
-df = pd.read_csv('data/WHS8_110.csv')
+app.layout = html.Div([
+    # represents the URL bar, doesn't render anything
+    dcc.Location(id='url', refresh=False),
+    dcc.Link('Generat Report'
+                    , href='/generat_report'),
+    html.Br(),
+    dcc.Link('PDF Generate'
+                    , href='/generat_pdf'),
+    html.Br(),
+    dcc.Link('Report sent email'
+                    , href='/Latest_Report_sent_email'),
+    # content will be rendered in this element
+    html.Div(id='page-content')
+])
 
-new_columns = {
-    'Country' : 'country'
-}
+@app.callback(dash.dependencies.Output('page-content', 'children'),
+              [dash.dependencies.Input('url', 'pathname')])
+def display_page(pathname):
+    if ('sent_email' in pathname):
+        print("flag0.0")
+        from Email import sendEmail
+        sendEmail()
+        return html.Div([
+            html.H3('You are on page of sending report through Email'),])
 
-df.columns = df.iloc[0].values
-df = df[1:]
-df = df.fillna(0).copy()
-df.columns = df.columns.astype(str)
-df.columns = [col.replace('.0','') for col in df.columns]
-df.rename(columns=new_columns, inplace=True)
+    if ('at_report' in pathname):
+        print("flag0")
+        from layout_1 import appMain_layout
+        return appMain_layout
 
-#df_country = df.head(30)
-#df_year = df.head(30)
+    if ('pdf' in pathname):
+        print("flag1")
+        x = datetime.now()
+        file_name = str(x.date())+'_'+str(x.strftime("%X").replace(':','-'))
+        filename = "assets/pdf/CovidReport_"+file_name+".pdf"
+        from PDFgen import PDFgenerate
+        mObj = PDFgenerate()
+        mObj.create_pdf_report(filename)
+        filename1 = "pdf/CovidReport_"+file_name+".pdf"
+        dwn_filename = "CovidReport_"+file_name+".pdf"
+        return html.Div([
+            html.H3('You are on page PDF Generate {}'.format(filename)),
+            html.A("PDF File",download=dwn_filename, href=app.get_asset_url("{}".format(filename1))),])
+    if len(pathname)<9:
+        return html.Div([html.H3('You are on page {}'.format(pathname)),   ])
 
-app = dash.Dash() 
-
-server = app.server
-
-app.layout = html.Div(
-    [ 
-        html.H1(
-            'Immunization Dashboard',
-            style = {'text-align' : 'center'}
-        ), 
-        html.Div([ 
-            dcc.Dropdown(
-                id='year_selection',
-                options=[
-                    {'label': '2019', 'value': '2019'},
-                    {'label': '2018', 'value': '2018'},
-                    {'label': '2017', 'value': '2017'},
-                    {'label': '2016', 'value': '2016'},
-                    {'label': '2015', 'value': '2015'},
-                    {'label': '2014', 'value': '2014'},
-                    {'label': '2013', 'value': '2013'},
-                    {'label': '2012', 'value': '2012'}
-                ],
-                value = '2019'
-            ),
-            dcc.Graph(id ='bargraph'),
-            dcc.Dropdown(
-                id='country_selection',
-                options=[
-                    {'label': 'Romania', 'value': 'Romania'},
-                    {'label': 'United States of America', 'value': 'United States of America'},
-                    {'label': 'France', 'value': 'France'},
-                    {'label': 'Hungary', 'value': 'Hungary'},
-                    {'label': 'Italy', 'value': 'Italy'},
-                    {'label': 'Sudan', 'value': 'Sudan'},
-                    {'label': 'Spain', 'value': 'Spain'},
-                    {'label': 'Egypt', 'value': 'Egypt'},
-                    {'label': 'India', 'value': 'India'},
-                ],
-                value = 'Romania'
-            ),
-            dcc.Graph(id ='linegraph'),
-        ],
-    style= {'padding':10})
-    ]
-)
-
-@app.callback(
-    Output('bargraph','figure'),         
-    [Input('year_selection','value')]
-)
-def retrieve_revenue(year):
-    df_country = df['country'].head(20)
-    df_year = df[year].head(20)
-    datapoints = {'data': [go.Bar(x=df_country, y=df_year)],'layout': dict(yaxis={'title':'Vaccination %'}, )} 
-    return datapoints
- 
-@app.callback(
-    Output('linegraph','figure'), 
-    [Input('country_selection','value')]
-) 
-def retrieve_revenue(country): 
-    df_country = df[df['country'] == country]
-    df_country = df_country.T.drop('country', axis=0)
-    df_country.columns = ['rate']
-    df_country = df_country.rename(columns={df_country.columns[0] : 'rate'})
-    years = list(df_country.index)
-    rates = list(df_country['rate'].values)
-    datapoints = {'data': [go.Scatter(x=years, y=rates, mode="lines+markers")], 'layout' : dict(yaxis=dict(range=[0,100]))}
-    return datapoints 
-
-if __name__ == '__main__': 
+if __name__ == '__main__':
     app.run_server(debug=True)
+
